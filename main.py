@@ -1,12 +1,16 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import pipeline
+from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
 import logging
 
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
-classifier = pipeline("sentiment-analysis")
+
+model_path = "./saved_model"
+classifier = pipeline("sentiment-analysis",
+                       model=AutoModelForSequenceClassification.from_pretrained(model_path),
+                       tokenizer=AutoTokenizer.from_pretrained(model_path))
 
 class TextInput(BaseModel):
     text: str
