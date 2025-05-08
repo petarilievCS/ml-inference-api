@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from cache import client
+from rate_limiter import is_rate_limited
 
 import logging
 import cache
@@ -15,6 +16,8 @@ def health_check():
 
 @app.post("/predict")
 async def predict(request: Request):
+    check_rate(request)
+
     data = await request.json()
     prompt = data["text"]
     
@@ -30,6 +33,8 @@ async def predict(request: Request):
 
 @app.post("/predict_batch")
 async def predict_batch(request: Request):
+    check_rate(request)
+
     data = await request.json()
     prompts = data["prompts"]
 
@@ -45,3 +50,12 @@ async def predict_batch(request: Request):
         pipe.execute()
 
     return results
+
+def check_rate(request: Request):
+    user = request.headers.get("X-User-ID")
+    if is_rate_limited(user):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please try again later.",
+            headers={"Retry-After": "60"}
+            )
