@@ -7,7 +7,7 @@ client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 def generate_hash(key: str, user: str):
     model = "model"
     hash = hashlib.sha256(key.encode()).hexdigest()
-    return f"model2:{user}:{hash}"
+    return f"model1:{user}:{hash}"
 
 def get(key: str):
     result = client.get(key)
