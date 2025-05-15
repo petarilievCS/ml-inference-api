@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from cache import client
 from rate_limiter import is_rate_limited
+from prometheus_fastapi_instrumentator import Instrumentator
+from contextlib import asynccontextmanager
 
 import logging
 import cache
@@ -20,6 +22,11 @@ logging.basicConfig(
 
 app = FastAPI()
 auth = OAuth2PasswordBearer(tokenUrl="token")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Instrumentator().instrument(app).expose(app)
+    yield
 
 @app.get("/health")
 def health_check():
