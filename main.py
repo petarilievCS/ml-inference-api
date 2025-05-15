@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer
 from cache import client
 from rate_limiter import is_rate_limited
 from prometheus_fastapi_instrumentator import Instrumentator
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 import logging
 import cache
@@ -23,21 +24,34 @@ logging.basicConfig(
 app = FastAPI(
     title="ML Inference API",
     description="A FastAPI app for ML inference with caching and rate limiting",
-    version="1.0.0"
+    version="1.0.0",
+    contact={
+        "name": "Petar Iliev",
+        "email": "petariliev2002@gmail.com",
+    }
 )
 auth = OAuth2PasswordBearer(tokenUrl="token")
+instrumentator = Instrumentator().instrument(app)
+
+class PredictRequest(BaseModel):
+    text: str
+
+class PredictBatchRequest(BaseModel):
+    prompts: list[str]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Instrumentator().instrument(app).expose(app)
+    instrumentator.expose(app)
     yield
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
 @app.post("/predict")
-async def predict(request: Request):
+async def predict(request: Request, body: PredictRequest = Body(...)):
     """
     Predict the classification for a single text prompt.
 
@@ -62,8 +76,7 @@ async def predict(request: Request):
 
     try:
         check_rate(request)
-        data = await request.json()
-        prompt = data["text"]
+        prompt = body.text
         
         key = cache.generate_hash(prompt, user_ip)
         logging.info(f"Generated key '{key}' for prompt from {user_ip}")
@@ -89,7 +102,7 @@ async def predict(request: Request):
         raise
     
 @app.post("/predict_batch")
-async def predict_batch(request: Request):
+async def predict_batch(request: Request, body: PredictBatchRequest = Body(...)):
     """
     Predict classifications for multiple text prompts in a batch.
 
@@ -115,8 +128,7 @@ async def predict_batch(request: Request):
     try:
         check_rate(request)
 
-        data = await request.json()
-        prompts = data["prompts"]
+        prompts = body.prompts
         logging.info(f"Processing {len(prompts)} prompts from {user_ip}")
 
         results = {}
