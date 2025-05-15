@@ -20,7 +20,11 @@ logging.basicConfig(
     ]
 )
 
-app = FastAPI()
+app = FastAPI(
+    title="ML Inference API",
+    description="A FastAPI app for ML inference with caching and rate limiting",
+    version="1.0.0"
+)
 auth = OAuth2PasswordBearer(tokenUrl="token")
 
 @asynccontextmanager
@@ -34,6 +38,23 @@ def health_check():
 
 @app.post("/predict")
 async def predict(request: Request):
+    """
+    Predict the classification for a single text prompt.
+
+    This endpoint accepts a JSON request containing a single text prompt and returns 
+    the classification result. It checks the cache first, and if the result is not found, 
+    it performs a real-time model inference.
+
+    Request Body:
+    - **text** (str): The text prompt to classify.
+
+    Returns:
+    - **dict**: The classification result, either from the cache or a real-time inference.
+
+    Raises:
+    - **HTTPException (429)**: If the user exceeds the rate limit.
+    - **HTTPException (500)**: If an unexpected error occurs.
+    """
     start_time = time.time()
     user_ip = request.client.host
 
@@ -69,6 +90,24 @@ async def predict(request: Request):
     
 @app.post("/predict_batch")
 async def predict_batch(request: Request):
+    """
+    Predict classifications for multiple text prompts in a batch.
+
+    This endpoint accepts a JSON request containing multiple text prompts 
+    and returns a dictionary mapping each prompt to its classification result. 
+    It uses Redis pipelines for batch caching to improve performance.
+
+    Request Body:
+    - **prompts** (list of str): A list of text prompts to classify.
+
+    Returns:
+    - **dict**: A dictionary mapping each prompt to its classification result, 
+      either from the cache or a real-time inference.
+
+    Raises:
+    - **HTTPException (429)**: If the user exceeds the rate limit.
+    - **HTTPException (500)**: If an unexpected error occurs.
+    """
     start_time = time.time()
     user_ip = request.client.host
     logging.info(f"Received batch request from {user_ip}")
@@ -109,6 +148,22 @@ async def predict_batch(request: Request):
 
 @app.delete("/invalidate/{prefix}", status_code=status.HTTP_204_NO_CONTENT)
 async def invalidate(prefix: str, request: Request):
+    """
+    Invalidate all cache keys with a specific prefix.
+
+    This endpoint deletes all cache keys that match the given prefix, 
+    freeing up memory and removing potentially outdated data.
+
+    Path Parameters:
+    - **prefix** (str): The prefix for the keys to invalidate.
+
+    Returns:
+    - **dict**: A confirmation message indicating the number of keys invalidated.
+
+    Raises:
+    - **HTTPException (429)**: If the user exceeds the rate limit.
+    - **HTTPException (500)**: If an unexpected error occurs.
+    """
     start_time = time.time()
     user_ip = request.client.host
     logging.info(f"Received invalidate request from {user_ip} for prefix '{prefix}'")
